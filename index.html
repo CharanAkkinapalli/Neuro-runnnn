@@ -1,0 +1,249 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>NEURO RUN: Escape the AI Brain</title>
+<style>
+:root{--c:#00f0ff;--v:#a24bff;--bg:#05020d;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--bg);color:#dff;font-family:Consolas,Menlo,monospace;user-select:none}
+canvas{position:fixed;inset:0;width:100%;height:100%}
+.scr{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(5,2,13,.55);text-align:center;padding:12px;overflow:auto}
+.scr.on{display:flex}
+h1{font-size:clamp(30px,7vw,72px);margin:0;letter-spacing:.12em;color:var(--c);text-shadow:0 0 12px var(--c),0 0 40px var(--v);animation:p 2.5s infinite alternate}
+h2{color:var(--c);text-shadow:0 0 14px var(--c);margin:0 0 6px}
+@keyframes p{to{text-shadow:0 0 20px var(--v),0 0 60px var(--c);color:#c9a0ff}}
+.sub{color:var(--v);letter-spacing:.3em;margin-bottom:14px}
+button{min-width:220px;padding:12px 20px;font:inherit;font-size:18px;color:var(--c);background:rgba(0,240,255,.06);border:1px solid var(--c);border-radius:4px;cursor:pointer;letter-spacing:.15em;transition:.15s}
+button:hover{background:var(--c);color:#001;box-shadow:0 0 24px var(--c)}
+.box{max-width:560px;text-align:left;line-height:1.7;font-size:14px}
+.row{display:flex;justify-content:space-between;gap:16px;align-items:center;width:min(420px,90vw)}
+select,input{font:inherit;background:#110a2a;color:var(--c);border:1px solid var(--v);padding:4px}
+#hud{position:fixed;inset:0;pointer-events:none;display:none;padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px}
+#hud.on{display:block}
+.top{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;text-shadow:0 0 8px var(--c);font-size:clamp(12px,2vw,17px)}
+.bar{width:160px;height:12px;border:1px solid var(--c);display:inline-block;vertical-align:middle}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--v),var(--c));width:100%}
+#toast{position:fixed;top:30%;left:0;right:0;text-align:center;font-size:clamp(18px,4vw,36px);color:var(--c);text-shadow:0 0 16px var(--v);opacity:0;transition:opacity .4s}
+#ctl{position:fixed;bottom:calc(8px + env(safe-area-inset-bottom,0px));left:0;right:0;text-align:center;font-size:12px;color:#8ab;opacity:.8}
+#flash{position:fixed;inset:0;background:#f02060;opacity:0;pointer-events:none;transition:opacity .3s}
+.tr{width:min(560px,94vw);font-size:13px}.tr details{margin-left:12px;border-left:1px dashed var(--v);padding-left:8px}.tr summary{cursor:pointer;color:var(--c);line-height:1.8}.tr p{margin:0 0 0 14px;color:#bcd;line-height:1.5}.tr ol{margin:4px 0;padding-left:34px}.tr li{margin:3px 0}.k{color:var(--v);font-weight:bold;letter-spacing:.1em}.algo{max-width:min(460px,92vw);margin-top:8px;padding:10px 14px;border:1px solid var(--v);background:rgba(162,75,255,.08);border-radius:4px;font-size:12px;line-height:1.55;text-align:left;color:#bcd}.algo b{color:var(--c);letter-spacing:.15em}.algo span{color:var(--v);font-weight:bold;margin-right:4px}
+</style></head><body>
+<div id="hud"><div class="top"><div>HP <span class="bar"><i id="hp"></i></span> &nbsp; LIVES <b id="lv"></b></div><div id="lvl"></div><div>CHIPS <b id="ch"></b> &nbsp; <span id="dr"></span></div><div>SCORE <b id="sc"></b> &nbsp; TIME <b id="tm"></b></div><div>AI ADAPT <span class="bar"><i id="ad" style="width:0;background:#f02060"></i></span></div></div>
+<div id="toast"></div><div id="ctl">WASD move · Shift sprint · Space jump · Ctrl/V slide · C crouch (hide in violet zones) · Q/E dodge · G A* path view · Esc pause</div></div>
+<div id="flash"></div>
+<div class="scr on" id="menu"><h1>NEURO RUN</h1><div class="sub">ESCAPE THE AI BRAIN</div><button onclick="startGame()">PLAY</button><button onclick="openS('menu')">SETTINGS</button><button onclick="show('ins')">INSTRUCTIONS</button><button onclick="show('alg')">ALGORITHMS</button><button onclick="show('tree')">TREE STRUCTURE</button><button onclick="quit()">QUIT</button><div id="bs" style="color:#8ab"></div></div>
+<div class="scr" id="alg"><h2>ALGORITHMS</h2><div class="box"><span class="k">A* PATHFINDING</span><br>Drones search a nav-grid built from the level with f = g + h (octile heuristic, 8-way moves). Active laser rows cost +6, low walls ×8, gaps and pillars are blocked. Paths are re-planned every 0.35s toward your predicted position; if you hide, they walk to your last-seen spot and patrol.<br><span class="k">ADAPTIVE AI</span><br>Repeating a move raises the AI Adapt meter. Lasers and barriers counter your favourite move (jump / slide / crouch) and drones lead their targets.<br><span class="k">PHYSICS</span><br>AABB collision, gravity, coyote-time jumps, slide momentum.</div><div style="color:#8ab;font-size:12px">Toggle them live (applies in the next game, saved):</div><button id="tp" onclick="tog('path')"></button><button id="ta" onclick="tog('ai')"></button><button onclick="show('menu')">BACK</button></div>
+<div class="scr" id="tree"><h2>TREE STRUCTURE &amp; MOMENTS</h2><div class="box tr"><details open><summary>🧠 NEURO RUN</summary><details><summary>Menus</summary><p>Main: Play · Settings · Instructions · Algorithms · Tree Structure · Quit</p><p>Pause: Resume · Restart · Settings · Main Menu</p><p>Settings: sound, music, difficulty, sensitivity, graphics, controls</p><p>End screens: Game Over / Victory → Replay · Main Menu</p></details><details><summary>Sector 1 · Synapse Corridor (cyan)</summary><p>Start → 8 random segments → exit door</p><p>Segments: gap jump · moving platform · laser gate · barrier · drone zone · chip run</p><p>Checkpoint pad every 3rd segment</p><p>Door unlocks at 60% of chips</p></details><details><summary>Sector 2 · Cortex Grid (violet)</summary><p>11 segments, wider gaps, double laser gates</p><p>Faster laser cycles, faster drones</p></details><details><summary>Sector 3 · Memory Core (magenta)</summary><p>14 segments, widest gaps</p><p>Moving platforms also bob up and down</p></details><details><summary>Boss · The AI Core (green)</summary><p>Arena with 4 pillars (A* cover)</p><p>Sweeping beam: jump or slide, height counters your habit</p><p>Shockwave rings: jump</p><p>3 pink shards = 3 hits; each hit spawns a drone</p></details><details><summary>Systems</summary><details><summary>Player</summary><p>Walk/run · sprint · jump · crouch · slide · dodge · hide</p></details><details><summary>Hazards</summary><p>Lasers · walls · overhead bars · gaps · void · drones · beam · shockwave</p></details><details><summary>AI</summary><p>A* pathfinding on a nav-grid</p><p>Adaptive AI: move-repeat meter → counters your favourite move</p></details><details><summary>Stats</summary><p>Health · lives · score · timer · chips · checkpoints</p><p>Saved: settings, A*/AI toggles, best score</p></details></details></details><details open><summary>⏱ Moments of the game</summary><ol><li><b>Boot</b> – brain-wireframe menu, orbiting runner.</li><li><b>Play</b> – sector title appears, you spawn on the start platform.</li><li><b>First run</b> – grab chips, jump gaps, ride moving platforms.</li><li><b>Laser gate</b> – time the blink: jump low beams, slide under high ones.</li><li><b>Checkpoint</b> – green pad lights up, respawn point saved.</li><li><b>Drone contact</b> – A* chase starts; slide, dodge, or hide in a violet zone.</li><li><b>AI adapts</b> – repeating moves fills the meter and obstacles counter you.</li><li><b>Exit unlocked</b> – enough chips collected, door opens.</li><li><b>Sector cleared</b> – time + 500 bonus, next sector loads.</li><li><b>Boss</b> – dodge beam and shockwaves, collect 3 shards.</li><li><b>Core destroyed</b> – victory screen, best score saved.</li><li><b>Failure path</b> – HP 0 → lose a life, reboot at checkpoint; no lives → System Failure.</li></ol></details></div><button onclick="show('menu')">BACK</button></div>
+<div class="scr" id="ins"><h2>INSTRUCTIONS</h2><div class="box">You are trapped inside a simulation ruled by a hostile AI. Cross 3 sectors, then destroy the AI core.<br>• Collect energy chips: the exit door stays locked until you hold enough.<br>• Jump over low lasers/walls; slide or crouch under high ones. Gaps and moving platforms need sprint-jumps.<br>• Security drones chase you. Slide into one to wreck it, dodge with Q/E, or crouch inside a violet shadow zone to hide.<br>• The AI watches you: repeat the same move and it adapts. Obstacles shift to counter your favourite move.<br>• Drones navigate with <b>A* pathfinding</b> on a grid built from the level: they route around pillars, hop low walls, avoid active lasers, and stop at gaps they can't cross. Press G to show/hide their pink path lines.<br>• See the Algorithms screen on the main menu for details and toggles.<br>• Touch green pads for checkpoints. Boss: grab the pink shards, jump the shockwaves, slide/jump the sweeping beam.<br><br><b>Keys:</b> WASD move · Shift sprint · Space jump · Ctrl or V slide · C crouch · Q/E dodge · Esc pause</div><button onclick="show('menu')">BACK</button></div>
+<div class="scr" id="set"><h2>SETTINGS</h2><div id="sf"></div><button onclick="show(from)">BACK</button></div>
+<div class="scr" id="pause"><h2>PAUSED</h2><button onclick="resume()">RESUME</button><button onclick="startGame()">RESTART</button><button onclick="openS('pause')">SETTINGS</button><button onclick="toMenu()">MAIN MENU</button></div>
+<div class="scr" id="over"><h1 style="color:#f02060">SYSTEM FAILURE</h1><div id="os"></div><button onclick="startGame()">REPLAY</button><button onclick="toMenu()">MAIN MENU</button></div>
+<div class="scr" id="win"><h1>YOU ESCAPED</h1><div id="ws"></div><button onclick="startGame()">REPLAY</button><button onclick="toMenu()">MAIN MENU</button></div>
+<div class="scr" id="quit"><h2>SIMULATION TERMINATED</h2><div>You can close this tab now.</div><button onclick="toMenu()">REBOOT</button></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const $=i=>document.getElementById(i),clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+let S={snd:.7,mus:.4,diff:1,sens:1,q:2,ctl:0,best:0,path:1,ai:1};
+try{Object.assign(S,JSON.parse(localStorage.getItem('neuro')||'{}'))}catch(e){}
+const save=()=>{try{localStorage.setItem('neuro',JSON.stringify(S))}catch(e){}};
+// ---------- audio
+let AC,mi=0,state='menu',lvl=1;
+function ac(){if(!AC)try{AC=new(window.AudioContext||window.webkitAudioContext)()}catch(e){}return AC}
+function beep(f,d=.1,t='square',v=.3,s=0){const a=ac();if(!a)return;const o=a.createOscillator(),g=a.createGain();o.type=t;o.frequency.value=f;o.frequency.exponentialRampToValueAtTime(Math.max(30,f+s),a.currentTime+d);g.gain.value=Math.max(.0002,v*S.snd*.3);g.gain.exponentialRampToValueAtTime(.0001,a.currentTime+d);o.connect(g);g.connect(a.destination);o.start();o.stop(a.currentTime+d)}
+const notes=[110,165,220,165,131,196,262,196];
+setInterval(()=>{if(!AC||S.mus<=0)return;const o=AC.createOscillator(),g=AC.createGain(),fl=AC.createBiquadFilter();o.type='sawtooth';o.frequency.value=notes[mi++%8]*(lvl>=4?1.5:1);fl.frequency.value=800;g.gain.value=.09*S.mus;g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+.22);o.connect(fl);fl.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+.22)},230);
+// ---------- three setup
+const R=new THREE.WebGLRenderer({antialias:true});document.body.prepend(R.domElement);
+const sc=new THREE.Scene();sc.background=new THREE.Color(0x05020d);sc.fog=new THREE.FogExp2(0x0a0420,.016);
+const cam=new THREE.PerspectiveCamera(65,1,.1,400);
+sc.add(new THREE.HemisphereLight(0x66ccff,0x3a1066,.9));
+const L1=new THREE.PointLight(0x00f0ff,1.4,45),L2=new THREE.PointLight(0xa24bff,1.2,60);sc.add(L1,L2);
+const W=new THREE.Group();sc.add(W);
+// digital brain backdrop + particles
+const BR=new THREE.Group();sc.add(BR);
+BR.add(new THREE.Mesh(new THREE.IcosahedronGeometry(40,2),new THREE.MeshBasicMaterial({color:0xa24bff,wireframe:true,transparent:true,opacity:.35})));
+BR.add(new THREE.Mesh(new THREE.IcosahedronGeometry(25,1),new THREE.MeshBasicMaterial({color:0x00f0ff,wireframe:true,transparent:true,opacity:.3})));
+let PT;{const g=new THREE.BufferGeometry(),a=[];for(let i=0;i<500;i++)a.push((Math.random()-.5)*60,Math.random()*25-4,(Math.random()-.5)*120);g.setAttribute('position',new THREE.Float32BufferAttribute(a,3));PT=new THREE.Points(g,new THREE.PointsMaterial({color:0x66f6ff,size:.18,transparent:true,opacity:.8}));sc.add(PT)}
+function applyQ(){R.setPixelRatio(S.q==0?1:S.q==1?Math.min(devicePixelRatio,1.5):devicePixelRatio);PT.visible=S.q>0;sc.fog.density=S.q?.016:.03;R.setSize(innerWidth,innerHeight);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix()}
+addEventListener('resize',applyQ);
+// ---------- world helpers
+let solids=[],lasers=[],chips=[],robots=[],checks=[],hides=[],movers=[],door=null,boss=null,need=1,EC=0x00f0ff,sd=1;
+const rnd=()=>(sd=sd*16807%2147483647)/2147483647;
+const V3=THREE.Vector3,P=new V3(),V=new V3(),cpv=new V3();
+function mk(x,y,z,w,h,d,col=0x14143f,edge=EC,sol=true){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color:col,emissive:edge,emissiveIntensity:.15,roughness:.5,metalness:.6}));m.position.set(x,y,z);m.add(new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry),new THREE.LineBasicMaterial({color:edge})));W.add(m);const o={m,h:[w/2,h/2,d/2]};if(sol)solids.push(o);return o}
+function chip(x,y,z){const m=new THREE.Mesh(new THREE.OctahedronGeometry(.4),new THREE.MeshStandardMaterial({color:0x00ffff,emissive:0x00ffff,emissiveIntensity:1}));m.position.set(x,y,z);W.add(m);chips.push(m)}
+function setBand(o,hi){o.hi=hi;o.y0=hi?1:.1;o.y1=hi?1.5:.7;o.m.scale.y=o.y1-o.y0;o.m.position.y=(o.y0+o.y1)/2}
+function laser(z,n){const m=new THREE.Mesh(new THREE.BoxGeometry(8,1,.14),new THREE.MeshBasicMaterial({color:0xff2060,transparent:true}));m.position.z=z;W.add(m);mk(-4.1,1,z,.3,2,.3,0x300,0xff2060,false);mk(4.1,1,z,.3,2,.3,0x300,0xff2060,false);const o={m,z,on:1.3,off:Math.max(.6,1.7-.25*n)*[1.3,1,.8][S.diff],ph:rnd()*3,ad:rnd()<.75};setBand(o,rnd()<.5);lasers.push(o)}
+function robot(x,y,z){const g=new THREE.Group(),b=new THREE.Mesh(new THREE.SphereGeometry(.55,12,10),new THREE.MeshStandardMaterial({color:0x222233,metalness:.8,roughness:.3,emissive:0x440022}));const e=new THREE.Mesh(new THREE.SphereGeometry(.2,8,8),new THREE.MeshBasicMaterial({color:0xff2060}));e.position.z=-.45;const r=new THREE.Mesh(new THREE.TorusGeometry(.8,.05,6,20),new THREE.MeshBasicMaterial({color:0xff2060}));r.rotation.x=Math.PI/2;g.add(b,e,r);g.position.set(x,y,z);W.add(g);const ln=new THREE.Line(new THREE.BufferGeometry().setAttribute('position',new THREE.BufferAttribute(new Float32Array(120),3)),new THREE.LineBasicMaterial({color:0xff2060,transparent:true,opacity:.7}));ln.frustumCulled=false;W.add(ln);robots.push({m:g,ring:r,line:ln,path:[],pi:0,rp:0,last:null,ty:1})}
+function clear(){while(W.children.length)W.remove(W.children[0]);solids=[];lasers=[];chips=[];robots=[];checks=[];hides=[];movers=[];door=null;boss=null}
+const PAL=[0x00f0ff,0xa24bff,0xff3df0,0x39ffb0];
+let stats={jump:0,slide:0,crouch:0};
+const dom=()=>S.ai&&stats.jump>stats.slide+stats.crouch;
+function build(n){build0(n);buildNav()}
+function build0(n){clear();lvl=n;EC=PAL[n-1];sd=n*977+13;let z=0;
+ const pl=len=>{mk(0,-.5,z-len/2,8,1,len);const c=z-len/2;z-=len;return c};
+ cpv.set(0,.3,-2);
+ if(n==4){mk(0,-.5,0,34,1,34);cpv.set(0,.3,14);const core=new THREE.Mesh(new THREE.IcosahedronGeometry(2.5,1),new THREE.MeshStandardMaterial({color:0x330066,emissive:0xa24bff,emissiveIntensity:1}));core.position.y=7;const w=new THREE.Mesh(new THREE.IcosahedronGeometry(3.4,2),new THREE.MeshBasicMaterial({color:0x00f0ff,wireframe:true}));core.add(w);W.add(core);
+  const bar=new THREE.Mesh(new THREE.BoxGeometry(30,1,.3),new THREE.MeshBasicMaterial({color:0xff2060}));W.add(bar);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(1,.1,6,48),new THREE.MeshBasicMaterial({color:0x00f0ff}));ring.rotation.x=Math.PI/2;ring.position.y=.15;ring.visible=false;W.add(ring);
+  const shard=new THREE.Mesh(new THREE.OctahedronGeometry(.6),new THREE.MeshStandardMaterial({color:0xff3df0,emissive:0xff3df0,emissiveIntensity:1}));W.add(shard);
+[[-8,-8],[8,-8],[-8,8],[8,8]].forEach(q=>mk(q[0],1.5,q[1],2,3,2,0x1a1040,0xa24bff));
+  boss={hp:3,core,bar,ring,shard,a:0,hi:false,rt:3,r:0,o:{}};setBand(boss.o,false);bar.scale.y=boss.o.y1-boss.o.y0;bar.position.y=(boss.o.y0+boss.o.y1)/2;moveShard();need=0;return}
+ pl(12);const segs=5+n*3;
+ for(let i=0;i<segs;i++){const t=Math.floor(rnd()*6);
+  if(t==0){const g=2.5+n*.8;chip(0,2.4,z-g/2);z-=g;pl(8)}
+  else if(t==1){const g=7+n,cz=z-g/2,m=mk(0,-.5,cz,5,1,4);m.mov={cz,r:g/2-2.2,s:.9+.2*n,ph:rnd()*6,px:0,pz:cz,py:-.5};movers.push(m);chip(0,1.2,cz);z-=g;pl(8)}
+  else if(t==2){const c=pl(14);laser(c,n);if(n>1)laser(c-4,n);chip(0,1,c-2)}
+  else if(t==3){const c=pl(10),hi=dom();if(hi){mk(0,1.2,c,8,.4,.6,0x14143f,0xff2060);chip(0,.5,c)}else{mk(0,.55,c,8,1.1,.6,0x14143f,0xff2060);chip(0,2.4,c)}}
+  else if(t==4){const c=pl(20);hides.push({x:-2.5,z:c});const h=mk(-2.5,1.2,c,3.4,2.4,3.4,0x6a20c0,0xa24bff,false);h.m.material.transparent=true;h.m.material.opacity=.18;robot(0,1.2,c-8);chip(2.5,1,c+2);chip(-2.5,1,c-2)}
+  else{const c=pl(12);chip(-2,1,c+3);chip(0,1,c);chip(2,1,c-3);if(n>1)laser(c-4.5,n)}
+  if(i%3==2){const c=pl(5),p=new THREE.Mesh(new THREE.CylinderGeometry(1.5,1.5,.1,16),new THREE.MeshBasicMaterial({color:0x39ffb0,transparent:true,opacity:.6}));p.position.set(0,.05,c);W.add(p);checks.push({z:c,m:p,on:false})}}
+ const c=pl(16),dz=c-4;door=mk(0,2,dz,8,4,.8,0x40104a,0xff2060);door.z=dz;need=Math.ceil(chips.length*.6)}
+function moveShard(){const a=Math.random()*6.28,r=4+Math.random()*9;boss.shard.position.set(Math.cos(a)*r,1.1,Math.sin(a)*r)}
+// ---------- player model
+const pm=new THREE.Group(),bd=new THREE.Group();pm.add(bd);sc.add(pm);
+const mt=(c,e)=>new THREE.MeshStandardMaterial({color:c,emissive:e,emissiveIntensity:.7,metalness:.7,roughness:.3}),dk=mt(0x182040,0x0a3050),gl=mt(0x00ffff,0x00ffff);
+const bx=(w,h,d,m,x,y,z=0)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);return o};
+bd.add(bx(.55,.7,.32,dk,0,1.15),bx(.4,.08,.34,gl,0,.82));
+const hd=new THREE.Mesh(new THREE.SphereGeometry(.2,12,10),dk);hd.position.y=1.62;bd.add(hd,bx(.3,.08,.1,gl,0,1.64,-.16));
+const limb=(x,y,m)=>{const g=new THREE.Group();g.position.set(x,y,0);g.add(bx(.16,.7,.18,m,0,-.35));bd.add(g);return g};
+const lgL=limb(-.15,.8,dk),lgR=limb(.15,.8,dk),arL=limb(-.38,1.45,gl),arR=limb(.38,1.45,gl);
+// ---------- game state
+let hp=100,lives=3,score=0,tm=0,got=0,invul=0,slideT=0,slideCD=0,dodgeCD=0,dodgeT=0,grounded=false,gnd=null,coy=0,jbuf=0,h=1.7,ph=0,ry=0,hidden=false,rep=0,lastAct='',adapt=0,t0=0,cro=false;
+const K={};
+const M=()=>S.ctl?{f:'ArrowUp',b:'ArrowDown',l:'ArrowLeft',r:'ArrowRight'}:{f:'KeyW',b:'KeyS',l:'KeyA',r:'KeyD'};
+function act(a){if(a==lastAct)rep++;else{lastAct=a;rep=Math.max(0,rep-2)}adapt=S.ai?clamp(rep/6,0,1):0}
+function toast(t,ms=2200){const e=$('toast');e.textContent=t;e.style.opacity=1;clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.opacity=0,ms)}
+function algUI(){$('tp').textContent='A* PATH VIEW: '+(S.path?'ON':'OFF');$('ta').textContent='ADAPTIVE AI: '+(S.ai?'ON':'OFF')}
+function tog(k){S[k]=S[k]?0:1;save();algUI();beep(500,.1);if(k=='path'&&state=='play')toast('A* PATH VIEW '+(S.path?'ON':'OFF'),900)}
+function show(id){document.querySelectorAll('.scr').forEach(s=>s.classList.toggle('on',s.id==id));$('hud').classList.toggle('on',id==null)}
+const hide=()=>show(null);
+function respawn(){P.copy(cpv);V.set(0,0,0);slideT=0;invul=2;gnd=null}
+function load(n){build(n);got=0;t0=tm;respawn();state='play';hide();toast(['SECTOR 1: SYNAPSE CORRIDOR','SECTOR 2: CORTEX GRID','SECTOR 3: MEMORY CORE','FINAL: THE AI BRAIN'][n-1])}
+function startGame(){ac();if(AC&&AC.state=='suspended')AC.resume();stats={jump:0,slide:0,crouch:0};lives=3;hp=100;score=0;tm=0;rep=0;adapt=0;load(1)}
+function end(win){state=win?'win':'over';score=Math.round(score);const nb=score>S.best;if(nb){S.best=score;save()}const t=`SCORE ${score}${nb?' (NEW BEST!)':''} · BEST ${S.best} · TIME ${fmt(tm)}`;$(win?'ws':'os').textContent=t;show(win?'win':'over');beep(win?660:80,.8,'sawtooth',.5,win?400:-50)}
+function die(){lives--;beep(90,.6,'sawtooth',.5,-60);if(lives<0)return end(false);hp=100;respawn();toast('REBOOTING AT CHECKPOINT')}
+function hurt(d){if(invul>0||dodgeT>0)return;hp-=d*[.6,1,1.5][S.diff];invul=1.3;beep(150,.25,'sawtooth',.5,-90);$('flash').style.opacity=.5;setTimeout(()=>$('flash').style.opacity=0,150);if(hp<=0)die()}
+const fmt=t=>Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0');
+function pause(){if(state=='play'){state='pause';show('pause')}}
+function resume(){if(state=='pause'){state='play';hide()}}
+let from='menu';function openS(f){from=f;show('set')}
+function toMenu(){state='menu';build(1);show('menu');$('bs').textContent='BEST SCORE: '+S.best}
+function quit(){try{window.close()}catch(e){}show('quit')}
+// settings UI
+[['Sound FX','snd','r',0,1,.05],['Music','mus','r',0,1,.05],['Difficulty','diff','s',['Easy','Normal','Hard']],['Move sensitivity','sens','r',.5,1.5,.1],['Graphics','q','s',['Low','Medium','High']],['Controls','ctl','s',['WASD','Arrow keys']]].forEach(f=>{const r=document.createElement('div');r.className='row';r.innerHTML=`<span>${f[0]}</span>`;let i;if(f[2]=='r'){i=document.createElement('input');i.type='range';i.min=f[3];i.max=f[4];i.step=f[5]}else{i=document.createElement('select');f[3].forEach((o,k)=>i.add(new Option(o,k)))}i.value=S[f[1]];i.onchange=()=>{S[f[1]]=+i.value;save();applyQ();beep(600,.08)};r.append(i);$('sf').append(r)});
+const kt=document.createElement('div');kt.className='box';kt.style.fontSize='12px';kt.textContent='Keys: Move WASD/Arrows · Sprint Shift · Jump Space · Slide Ctrl or V · Crouch C · Dodge Q/E · Pause Esc';$('sf').append(kt);
+// input
+addEventListener('keydown',e=>{if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();if(e.repeat)return;K[e.code]=1;
+ if(e.code=='Escape'){state=='play'?pause():state=='pause'&&resume();return}
+ if(e.code=='KeyG')tog('path');
+ if(state!='play')return;
+ if(e.code=='Space')jbuf=.14;
+ if(['ControlLeft','ControlRight','KeyV'].includes(e.code)&&grounded&&slideT<=0&&slideCD<=0&&Math.hypot(V.x,V.z)>4){slideT=.8;slideCD=.4;stats.slide++;act('slide');beep(300,.4,'sawtooth',.3,-200)}
+ if((e.code=='KeyQ'||e.code=='KeyE')&&dodgeCD<=0){V.x=e.code=='KeyQ'?-15:15;dodgeT=.3;dodgeCD=1;act('dodge');beep(800,.15,'triangle',.3,400)}});
+addEventListener('keyup',e=>K[e.code]=0);addEventListener('blur',()=>{for(const k in K)K[k]=0;pause()});
+
+// ---------- A* PATHFINDING (grid nav-mesh built from the level's platforms)
+let nav=null;
+function buildNav(){const gs=solids.filter(s=>!s.mov&&s.h[1]==.5&&Math.abs(s.m.position.y+.5)<.01),ob=solids.filter(s=>!s.mov&&!gs.includes(s));
+ if(!gs.length){nav=null;return}let a=1e9,b=-1e9,c=1e9,e=-1e9;gs.forEach(s=>{const p=s.m.position;a=Math.min(a,p.x-s.h[0]);b=Math.max(b,p.x+s.h[0]);c=Math.min(c,p.z-s.h[2]);e=Math.max(e,p.z+s.h[2])});
+ const x0=Math.floor(a),z0=Math.floor(c),w=Math.ceil(b)-x0,d=Math.ceil(e)-z0,ty=new Uint8Array(w*d);
+ for(let j=0;j<d;j++)for(let i=0;i<w;i++){const x=x0+i+.5,z=z0+j+.5;if(!gs.some(s=>Math.abs(x-s.m.position.x)<s.h[0]&&Math.abs(z-s.m.position.z)<s.h[2]))continue;let t=1;
+  for(const s of ob){const p=s.m.position;if(Math.abs(x-p.x)>s.h[0]+.3||Math.abs(z-p.z)>s.h[2]+.3)continue;const bt=p.y-s.h[1],tp=p.y+s.h[1];if(s===door){t=3;break}if(bt>.8)continue;t=tp<1.3?Math.max(t,2):3;if(t==3)break}
+  ty[j*w+i]=t}
+ nav={x0,z0,w,d,ty}}
+const cellOf=(x,z)=>{const i=Math.floor(x-nav.x0),j=Math.floor(z-nav.z0);return i<0||j<0||i>=nav.w||j>=nav.d?-1:j*nav.w+i};
+// returns [[x,z,terrainType],...] from start to goal (or to the reachable cell closest to the goal)
+function astar(sx,sz,gx,gz){if(!nav)return[];const {w,d,ty,x0,z0}=nav,si=cellOf(sx,sz);if(si<0||ty[si]==0||ty[si]==3)return[];
+ const gc=clamp(Math.floor(gx-x0),0,w-1),gr=clamp(Math.floor(gz-z0),0,d-1),N=w*d,g=new Float32Array(N).fill(1e9),f=new Float32Array(N),par=new Int32Array(N).fill(-1),cl=new Uint8Array(N),H=[],pen=new Float32Array(d);
+ lasers.forEach(o=>{if(o.isOn)for(let j=0;j<d;j++)if(Math.abs(z0+j+.5-o.z)<.8)pen[j]=6});
+ const hf=i=>{const dx=Math.abs(i%w-gc),dy=Math.abs((i/w|0)-gr);return dx+dy-.586*Math.min(dx,dy)};
+ const push=i=>{H.push(i);let k=H.length-1;while(k>0){const p=(k-1)>>1;if(f[H[p]]<=f[i])break;H[k]=H[p];k=p}H[k]=i};
+ const pop=()=>{const top=H[0],l=H.pop();if(H.length){let k=0;for(;;){let c=2*k+1;if(c>=H.length)break;if(c+1<H.length&&f[H[c+1]]<f[H[c]])c++;if(f[l]<=f[H[c]])break;H[k]=H[c];k=c}H[k]=l}return top};
+ g[si]=0;f[si]=hf(si);push(si);let best=si,bh=hf(si),n=0;
+ while(H.length&&n++<4000){const c=pop();if(cl[c])continue;cl[c]=1;const hh=hf(c);if(hh<bh){bh=hh;best=c}if(hh==0)break;const cx=c%w,cy=c/w|0;
+  for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++){if(!a&&!b)continue;const x=cx+a,y=cy+b;if(x<0||y<0||x>=w||y>=d)continue;const ni=y*w+x,t=ty[ni];if(t==0||t==3||cl[ni])continue;
+   if(a&&b&&(ty[cy*w+x]%3==0||ty[y*w+cx]%3==0))continue;
+   const ng=g[c]+(a&&b?1.414:1)*(t==2?8:1)+pen[y];if(ng<g[ni]){g[ni]=ng;par[ni]=c;f[ni]=ng+hf(ni);push(ni)}}}
+ const out=[];for(let c=best;c>=0&&c!=si;c=par[c])out.push([x0+c%w+.5,z0+(c/w|0)+.5,ty[c]]);return out.reverse()}
+function robotAI(r,dt,sees,tx,tz,spd){const p=r.m.position;r.rp-=dt;if(sees)r.last=[tx,tz];
+ if(r.rp<=0){if(r.last){r.rp=.35;r.path=astar(p.x,p.z,r.last[0],r.last[1])}else{r.rp=2.5;const a=Math.random()*6.28;r.path=astar(p.x,p.z,p.x+Math.cos(a)*7,p.z+Math.sin(a)*7)}r.pi=0}
+ let mv=null;while(r.path[r.pi]&&Math.hypot(r.path[r.pi][0]-p.x,r.path[r.pi][1]-p.z)<.4)r.pi++;
+ if(r.path[r.pi]){mv=r.path[r.pi];r.ty=mv[2]}else{r.ty=1;if(r.last&&!sees)r.last=null;else if(sees&&Math.hypot(P.x-p.x,P.z-p.z)<3)mv=[P.x,P.z]}
+ if(mv){const dx=mv[0]-p.x,dz=mv[1]-p.z,l=Math.hypot(dx,dz)||1,s=spd*(sees?1:.5)*dt;p.x+=dx/l*Math.min(s,l);p.z+=dz/l*Math.min(s,l)}
+ const q=r.line.geometry.attributes.position.array,m=Math.min(39,r.path.length-r.pi);q[0]=p.x;q[1]=.2;q[2]=p.z;for(let k=0;k<m;k++){const w=r.path[r.pi+k];q[3+k*3]=w[0];q[4+k*3]=.2;q[5+k*3]=w[1]}
+ r.line.geometry.setDrawRange(0,m+1);r.line.geometry.attributes.position.needsUpdate=true;r.line.visible=!!S.path&&m>0}
+// ---------- physics
+function ov(x,y,z,hh){for(const s of solids){const p=s.m.position,a=s.h;if(Math.abs(x-p.x)<a[0]+.35&&Math.abs(z-p.z)<a[2]+.35&&y<p.y+a[1]-.001&&y+hh>p.y-a[1]+.001)return s}return null}
+function update(dt){tm+=dt;const T=tm,m=M();
+ invul-=dt;slideCD-=dt;dodgeCD-=dt;dodgeT-=dt;jbuf-=dt;coy-=dt;
+ // movers
+ for(const o of movers){const q=o.mov,nz=q.cz+Math.sin(T*q.s+q.ph)*q.r,ny=lvl>2?-.5+Math.sin(T*q.s*.7)*.5:-.5;q.dz=nz-q.pz;q.dy=ny-q.py;q.pz=nz;q.py=ny;o.m.position.z=nz;o.m.position.y=ny}
+ if(gnd&&gnd.mov){P.z+=gnd.mov.dz;P.y+=gnd.mov.dy}
+ // input
+ let ix=(K[m.r]?1:0)-(K[m.l]?1:0),iz=(K[m.b]?1:0)-(K[m.f]?1:0);const il=Math.hypot(ix,iz)||1;ix/=il;iz/=il;
+ const wantC=!!K.KeyC,spr=K.ShiftLeft||K.ShiftRight;
+ if(wantC&&!cro&&grounded)stats.crouch++;cro=wantC;
+ const crouching=(wantC||(slideT<=0&&h<1.7&&ov(P.x,P.y,P.z,1.7)))&&slideT<=0;
+ if(slideT>0)slideT-=dt;
+ const sliding=slideT>0,tgt=crouching?3.2:spr?11:7,acc=(grounded?45:25)*S.sens;
+ if(sliding){const s=3+10*(slideT/.8),l=Math.hypot(V.x,V.z)||1;V.x=V.x/l*s;V.z=V.z/l*s}
+ else if(dodgeT<=0){V.x+=clamp(ix*tgt-V.x,-acc*dt,acc*dt);V.z+=clamp(iz*tgt-V.z,-acc*dt,acc*dt)}
+ if(!sliding&&(ix||iz)&&spr&&grounded)act('sprint');
+ // height
+ const nh=(sliding||crouching)?.9:1.7;if(nh>h&&ov(P.x,P.y,P.z,nh)){}else h=nh;
+ if(jbuf>0&&(grounded||coy>0)&&!ov(P.x,P.y,P.z,1.7)){V.y=9.8;jbuf=0;coy=0;grounded=false;gnd=null;stats.jump++;act('jump');beep(420,.2,'square',.3,300)}
+ V.y=Math.max(-40,V.y-26*dt);
+ let nx=P.x+V.x*dt;if(ov(nx,P.y+.02,P.z,h))V.x=0;else P.x=nx;
+ let nz=P.z+V.z*dt;if(ov(P.x,P.y+.02,nz,h))V.z=0;else P.z=nz;
+ const ny=P.y+V.y*dt,s=ov(P.x,ny,P.z,h);grounded=false;
+ if(s){if(V.y<=0){P.y=s.m.position.y+s.h[1];grounded=true;gnd=s;coy=.1}else P.y=s.m.position.y-s.h[1]-h;V.y=0}else{P.y=ny;if(gnd&&!grounded)gnd=null}
+ if(P.y<-12){hp-=0;hurtFall()}
+ // hiding
+ hidden=crouching&&grounded&&hides.some(z=>Math.abs(P.x-z.x)<1.8&&Math.abs(P.z-z.z)<1.8);
+ // lasers
+ for(const o of lasers){const per=(o.on+o.off*(1-.35*adapt)),on=((T+o.ph)%per)<o.on;
+  if(S.ai&&o.ad&&o.z<P.z-20&&dom()!==o.hi&&!on)setBand(o,dom());
+  o.m.material.opacity=on?.9:.1;o.isOn=on;if(on&&Math.abs(P.z-o.z)<.5&&P.y<o.y1&&P.y+h>o.y0)hurt(25)}
+ // chips
+ for(let i=chips.length-1;i>=0;i--){const c=chips[i];c.rotation.y+=dt*3;if(c.position.distanceTo(new V3(P.x,P.y+.9,P.z))<1.2){W.remove(c);chips.splice(i,1);got++;score+=100;beep(900,.15,'sine',.4,500)}}
+ // checkpoints
+ for(const c of checks)if(!c.on&&P.z<c.z){c.on=true;c.m.material.opacity=1;cpv.set(0,.3,c.z);toast('CHECKPOINT',1200);beep(500,.3,'triangle',.4,400)}
+ // robots
+ for(let i=robots.length-1;i>=0;i--){const r=robots[i],p=r.m.position,dx=P.x-p.x,dz=P.z-p.z,d=Math.hypot(dx,dz);r.ring.rotation.z+=dt*5;
+  const sees=d<30&&!hidden,lead=adapt*.6;robotAI(r,dt,sees,P.x+V.x*lead,P.z+V.z*lead,(3+lvl*.8)*[.8,1,1.3][S.diff]*(1+adapt*.35));
+  p.y+=((1+(r.ty==2?1.5:0)+Math.sin(T*3+i)*.15)-p.y)*Math.min(1,dt*6);r.m.rotation.y=Math.atan2(-dx,-dz);
+  if(d<1.1&&Math.abs(p.y-P.y-.9)<1.4){if(sliding){W.remove(r.m);W.remove(r.line);robots.splice(i,1);score+=150;beep(200,.3,'sawtooth',.5,-120)}else{hurt(20);const l=d||1;V.x-=dx/l*8;V.z-=dz/l*8}}}
+ // door
+ if(door){const open=got>=need;if(open&&solids.includes(door)){solids.splice(solids.indexOf(door),1);door.m.material.emissive.set(0x39ffb0);door.m.material.opacity=.3;door.m.material.transparent=true;toast('EXIT UNLOCKED');beep(700,.5,'triangle',.5,500)}
+  if(open&&P.z<door.z-1.5)clearLevel()}
+ if(boss)bossUpdate(dt);
+ // anim
+ const sp=Math.hypot(V.x,V.z);ph+=dt*sp*1.1;const sw=grounded?Math.sin(ph)*clamp(sp/8,0,1)*1.1:.4;
+ lgL.rotation.x=sw;lgR.rotation.x=-sw;arL.rotation.x=grounded?-sw:-2.6;arR.rotation.x=grounded?sw:-2.6;
+ bd.scale.y=h/1.7;bd.rotation.x=sliding?.9:crouching?.25:sp>9?-.2:0;
+ if(sp>.5||dodgeT>0){let d=Math.atan2(-V.x,-V.z)-ry;d=Math.atan2(Math.sin(d),Math.cos(d));ry+=d*Math.min(1,dt*12)}
+ pm.position.copy(P);pm.rotation.y=ry;pm.visible=hidden?Math.floor(T*10)%2==0:(invul<=0||Math.floor(T*20)%2==0);
+ L1.position.set(P.x,P.y+3,P.z+2);L2.position.set(P.x,P.y+6,P.z-18);
+ // camera
+ const cx=P.x*.6,cy=P.y+3.6,cz=P.z+7.5;cam.position.x+=(cx-cam.position.x)*Math.min(1,dt*6);cam.position.y+=(cy-cam.position.y)*Math.min(1,dt*6);cam.position.z+=(cz-cam.position.z)*Math.min(1,dt*8);cam.lookAt(P.x*.8,P.y+1.2,P.z-4);
+ hud()}
+function hurtFall(){hp-=30;beep(100,.4,'sawtooth',.4,-70);if(hp<=0)die();else{respawn();toast('SIGNAL LOST')}}
+function clearLevel(){const b=Math.max(0,Math.round(600-(tm-t0)*4))+500;score+=b;beep(880,.6,'triangle',.5,600);if(lvl>=4)return end(true);state='trans';toast(`SECTOR CLEARED +${b}`,1800);setTimeout(()=>{if(state=='trans')load(lvl+1)},2000)}
+function bossUpdate(dt){const b=boss,sp=1+(3-b.hp)*.35;b.core.rotation.y+=dt;b.core.position.y=7+Math.sin(tm*2);b.core.scale.setScalar(1+Math.sin(tm*6)*.05);
+ const pa=b.a;b.a+=dt*sp*[.8,1,1.3][S.diff];b.bar.rotation.y=b.a;
+ if(Math.floor(b.a/6.283)!=Math.floor(pa/6.283)){setBand(b.o,rnd()<.7?dom():!dom());b.bar.scale.y=b.o.y1-b.o.y0;b.bar.position.y=b.o.y;b.bar.position.y=(b.o.y0+b.o.y1)/2}
+ const c=Math.cos(b.a),s=Math.sin(b.a),al=P.x*c-P.z*s,pe=P.x*s+P.z*c;
+ if(Math.abs(pe)<.6&&Math.abs(al)<15&&P.y<b.o.y1&&P.y+h>b.o.y0)hurt(20);
+ b.rt-=dt;if(b.rt<=0){b.rt=4.5/sp;b.r=.1;b.ring.visible=true;beep(120,.5,'sawtooth',.5,-60)}
+ if(b.r>0){b.r+=dt*7;b.ring.scale.setScalar(b.r);if(Math.abs(Math.hypot(P.x,P.z)-b.r)<.9&&P.y<.8)hurt(20);if(b.r>20){b.r=0;b.ring.visible=false}}
+ b.shard.rotation.y+=dt*3;b.shard.position.y=1.1+Math.sin(tm*4)*.2;
+ if(Math.hypot(P.x-b.shard.position.x,P.z-b.shard.position.z)<1.4&&P.y<2){b.hp--;score+=500;beep(1000,.3,'sine',.5,-400);toast(b.hp>0?'CORE DAMAGED':'CORE DESTROYED',1200);if(b.hp<=0){clearLevel();return}moveShard();const a=Math.random()*6.28;robot(Math.cos(a)*14,1.5,Math.sin(a)*14)}
+ if(P.y<-12)hurtFall()}
+function hud(){$('hp').style.width=Math.max(0,hp)+'%';$('lv').textContent='♥'.repeat(Math.max(0,lives));$('lvl').textContent=lvl==4?'BOSS: AI CORE '+'◆'.repeat(boss?boss.hp:0):'SECTOR '+lvl+'/3';$('ch').textContent=got+'/'+need;$('dr').textContent=lvl==4?'':(got>=need?'EXIT OPEN':'EXIT LOCKED');$('sc').textContent=Math.round(score);$('tm').textContent=fmt(tm);$('ad').style.width=adapt*100+'%'}
+// ---------- loop
+let last=performance.now();
+function loop(now){requestAnimationFrame(loop);const dt=Math.min(.05,(now-last)/1000);last=now;
+ if(state=='play')update(dt);
+ else if(state=='menu'){const a=now/4000;cam.position.set(Math.sin(a)*14,6,-18+Math.cos(a)*14);cam.lookAt(0,1,-18);pm.position.set(0,0,-18);pm.rotation.y=a;lgL.rotation.x=lgR.rotation.x=0;pm.visible=true}
+ BR.position.set(0,12,cam.position.z-150);BR.rotation.y+=dt*.1;BR.rotation.x+=dt*.05;BR.scale.setScalar(1+Math.sin(now/700)*.03);
+ PT.position.z=cam.position.z-40;PT.rotation.y+=dt*.02;
+ R.render(sc,cam)}
+applyQ();algUI();build(1);$('bs').textContent='BEST SCORE: '+S.best;requestAnimationFrame(loop);
+</script></body></html>
